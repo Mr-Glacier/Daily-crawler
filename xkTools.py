@@ -7,6 +7,7 @@ def readFile(save_path, save_name):
     try:
         with open(save_path + save_name, mode='r', encoding='utf-8') as file:
             content = file.read()
+        return content
     except Exception as e:
         print(f'{e}')
 
@@ -24,6 +25,7 @@ def writeFile(save_path, save_name, content):
 def getFolderFileNames(save_path):
     try:
         file_names = os.listdir(save_path)
+        file_names.remove('.DS_Store')
         return file_names
     except Exception as e:
         print(f'{e}')
