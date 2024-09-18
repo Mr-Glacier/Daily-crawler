@@ -25,7 +25,8 @@ def writeFile(save_path, save_name, content):
 def getFolderFileNames(save_path):
     try:
         file_names = os.listdir(save_path)
-        file_names.remove('.DS_Store')
+        if '.DS_Store' in file_names:
+            file_names.remove('.DS_Store')
         return file_names
     except Exception as e:
         print(f'{e}')

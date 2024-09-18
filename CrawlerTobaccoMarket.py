@@ -243,7 +243,7 @@ def downBrandDetailsPage(save_path):
             xkTools.writeFile(save_path, source_id + '_1.txt', html)
             update_brand_table_details(all_brand_detail[0])
         else:
-            for i in range(1, page_number+1):
+            for i in range(1, page_number + 1):
                 # http://www.etmoc.com/Firms/BrandShow?page=2&Id=260
                 url = 'http://www.etmoc.com/Firms/BrandShow?page=' + str(i) + '&Id=' + source_id
                 print(f'{url}')
@@ -251,6 +251,47 @@ def downBrandDetailsPage(save_path):
                 xkTools.writeFile(save_path, source_id + '_' + str(i) + '.txt', html)
             update_brand_table_details(all_brand_detail[0])
         print(f'OK---->{source_id}')
+
+
+def analysisBrandDetailsPage(save_path):
+    fileNames = xkTools.getFolderFileNames(save_path)
+    bean_list = []
+    for fileName in fileNames:
+        print(fileName)
+        html = xkTools.readFile(save_path, fileName)
+        soup = BeautifulSoup(html, 'html.parser')
+        specifications_area = soup.select('ul.detail.list-p')[0].select('li')
+        for specifications in specifications_area:
+            specifications_url = 'http://www.etmoc.com/Firms/' + specifications.select('a')[0]['href']
+            specifications_pic_url = 'http://www.etmoc.com' + specifications.select('img')[0]['src']
+            specifications_name = specifications.select('img')[0]['alt']
+            specifications_norm = specifications.select('div.li-p-t')[0].select('p')[0].text
+            number_list = specifications.select('div.li-p-b')[0].select('p')
+            specifications_th_number = ''
+            specifications_xh_number = ''
+            if len(number_list) > 1:
+                specifications_xh_number = specifications.select('div.li-p-b')[0].select('p')[0].text
+                specifications_th_number = specifications.select('div.li-p-b')[0].select('p')[1].text
+            if len(number_list) == 1:
+                specifications_xh_number = specifications.select('div.li-p-b')[0].select('p')[0].text
+                specifications_th_number = ''
+            specifications_price = specifications.select('div.li-p-p')[0].text
+            specifications_source_id = specifications_url.replace('http://www.etmoc.com/Firms/Product?Id=', '')
+            bean_brand_details = {
+                'specifications_name': specifications_name.replace('\n', '').replace('\r', '').replace('\t', ''),
+                'specifications_url': specifications_url,
+                'specifications_pic_url': specifications_pic_url,
+                'specifications_norm': specifications_norm.replace('\n', '').replace('\r', '').replace('\t', ''),
+                'specifications_xh_number': specifications_xh_number.replace('\n', '').replace('\r', '').replace('\t',
+                                                                                                                 ''),
+                'specifications_th_number': specifications_th_number.replace('\n', '').replace('\r', '').replace('\t',
+                                                                                                                 ''),
+                'specifications_price': specifications_price.replace('\n', '').replace('\r', '').replace('\t', ''),
+                'brand_source_id': fileName.split('_')[0],
+                'specifications_source_id': specifications_source_id
+            }
+            bean_list.append(bean_brand_details)
+    return bean_list
 
 
 if __name__ == '__main__':
@@ -275,4 +316,5 @@ if __name__ == '__main__':
 
     # step 4 : down tobacco brand details all pages
     tobacco_brand_details_path = '/tobacco_brand_details/'
-    downBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
+    # downBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
+    bean_list_brand_details = analysisBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
