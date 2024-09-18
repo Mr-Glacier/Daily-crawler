@@ -54,6 +54,57 @@ def insert_brand_table(brand_beans, batch_size):
         print(e)
 
 
+def insert_tobacco_brand_details(brand_beans, batch_size):
+    sql_insert_brand_details = """INSERT INTO tobacco_brand_details (source_id,brand_title, brand_pinyin, 
+    brand_introduce, brand_image_url,page_number,down_state,down_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?);"""
+    try:
+        # 分批插入数据
+        for i in range(0, len(brand_beans), batch_size):
+            conn = sqlite3.connect(dataBasePath)
+            curs = conn.cursor()
+            now = datetime.datetime.now()
+            formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
+            batch = brand_beans[i:i + batch_size]
+            curs.executemany(sql_insert_brand_details,
+                             [(b['source_id'], b['brand_title'], b['brand_english'], b['brand_introduce'],
+                               b['brand_image_url'], b['page_number'], 'NO', formatted_now)
+                              for b in batch])
+            conn.commit()
+            curs.close()
+            conn.close()
+            print(f'bath{i}----->OK')
+        print(f"All {len(brand_beans)} brands_details inserted successfully.")
+    except Exception as e:
+        print(e)
+
+
+def select_tobacco_brand_details():
+    try:
+        conn = sqlite3.connect(dataBasePath)
+        curs = conn.cursor()
+        sqlStr = ''' select * from tobacco_brand_details where down_state = 'NO' '''
+        curs.execute(sqlStr)
+        all_brands_details = curs.fetchall()
+        curs.close()
+        conn.close()
+        return all_brands_details
+    except Exception as e:
+        print(f'{e}')
+
+
+def update_brand_table_details(id):
+    try:
+        conn = sqlite3.connect(dataBasePath)
+        curs = conn.cursor()
+        sql_str = '''update tobacco_brand_details set down_state = 'YES' where id =  ? '''
+        curs.execute(sql_str, (id,))
+        conn.commit()
+        curs.close()
+        conn.close()
+    except Exception as e:
+        print(f'{e}')
+
+
 # select all brand to down
 def select_brand_table():
     try:
@@ -100,9 +151,6 @@ def getHtml(url):
         return response.text
     else:
         print(f"Error{response.status_code}")
-
-
-allBrandUrl = 'http://www.etmoc.com/Firms/BrandAll'
 
 
 # 解析全部品牌
@@ -153,6 +201,7 @@ def downFirstBrandPage(save_path):
 
 def analysisFirstBrandPage(save_path):
     fileNames = xkTools.getFolderFileNames(save_path)
+    bean_list = []
     for fileName in fileNames:
         print(fileName)
         html = xkTools.readFile(save_path, fileName)
@@ -167,14 +216,49 @@ def analysisFirstBrandPage(save_path):
         brand_image_url = 'http://www.etmoc.com' + soup.select('p.brandImg.detailshad')[0].select('img')[0]['src']
         page_content = soup.select('ul.pagination')[0].select('li')
         if len(page_content) != 0:
-            pageNumber = page_content[len(page_content) - 2].select('a')[0].text
+            print('------>' + page_content[len(page_content) - 2].select('a')[0].text)
+            pageNumber = int(page_content[len(page_content) - 2].select('a')[0].text.replace('...', ''))
             print(pageNumber)
         else:
             pageNumber = 1
+        bean_brand_detail = {'brand_title': deal_band_title.replace('\n', '').replace('\t', '').replace('\r', ''),
+                             'brand_english': brand_title_small.replace('\n', '').replace('\t', '').replace('\r', ''),
+                             'brand_introduce': brand_introduce,
+                             'brand_image_url': brand_image_url,
+                             'page_number': pageNumber,
+                             'source_id': fileName.replace('.txt', '')
+                             }
+        bean_list.append(bean_brand_detail)
+    return bean_list
 
-mainSavePath = '/Users/renyongkang/MyPath/ZKZD2023_Data/tobacco/'
+
+def downBrandDetailsPage(save_path):
+    all_brand_details = select_tobacco_brand_details()
+    for all_brand_detail in all_brand_details:
+        page_number = all_brand_detail[6]
+        source_id = all_brand_detail[1]
+        if page_number == 1:
+            url = 'http://www.etmoc.com/Firms/BrandShow?Id=' + source_id
+            html = getHtml(url)
+            xkTools.writeFile(save_path, source_id + '_1.txt', html)
+            update_brand_table_details(all_brand_detail[0])
+        else:
+            for i in range(1, page_number+1):
+                # http://www.etmoc.com/Firms/BrandShow?page=2&Id=260
+                url = 'http://www.etmoc.com/Firms/BrandShow?page=' + str(i) + '&Id=' + source_id
+                print(f'{url}')
+                html = getHtml(url)
+                xkTools.writeFile(save_path, source_id + '_' + str(i) + '.txt', html)
+            update_brand_table_details(all_brand_detail[0])
+        print(f'OK---->{source_id}')
+
 
 if __name__ == '__main__':
+    #  this is main savePath for all tobacco data
+    mainSavePath = '/Users/renyongkang/MyPath/ZKZD2023_Data/tobacco/'
+    #  the first url
+    allBrandUrl = 'http://www.etmoc.com/Firms/BrandAll'
+
     # step1 : down and analysis all brand
     # html = getHtml(allBrandUrl)
     # brand_bean_list = AnalysisAllBrandHtml(html)
@@ -186,4 +270,9 @@ if __name__ == '__main__':
     # downFirstBrandPage(mainSavePath + first_page_path)
 
     # step 3 : analysis first brand page
-    analysisFirstBrandPage(mainSavePath + first_page_path)
+    # bean_list_brand_details = analysisFirstBrandPage(mainSavePath + first_page_path)
+    # insert_tobacco_brand_details(bean_list_brand_details, 50)
+
+    # step 4 : down tobacco brand details all pages
+    tobacco_brand_details_path = '/tobacco_brand_details/'
+    downBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
