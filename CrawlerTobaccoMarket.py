@@ -31,8 +31,8 @@ def create_brand_table():
 # insert into brand table
 def insert_brand_table(brand_beans, batch_size):
     sql_insert_brand = """
-        INSERT INTO tobacco_brand (brand_type, brand_name, brand_url,down_state,down_time)
-        VALUES (?, ?, ?, ?, ?);
+        INSERT INTO tobacco_brand (source_id,brand_type, brand_name, brand_url,down_state,down_time)
+        VALUES (?, ?, ?, ?, ?, ?);
         """
     try:
         # 分批插入数据
@@ -43,7 +43,8 @@ def insert_brand_table(brand_beans, batch_size):
             formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
             batch = brand_beans[i:i + batch_size]
             curs.executemany(sql_insert_brand,
-                             [(b['brand_style'], b['brand_name'], b['brand_url'], 'NO', formatted_now) for b in batch])
+                             [(b['source_id'], b['brand_style'], b['brand_name'], b['brand_url'], 'NO', formatted_now)
+                              for b in batch])
             conn.commit()
             curs.close()
             conn.close()
@@ -132,7 +133,8 @@ def AnalysisAllBrandHtml(soup_html):
             brand_url = 'http://www.etmoc.com/Firms/' + brand.select("a")[0]['href']
             brand_bean = {'brand_name': brand_name,
                           'brand_url': brand_url,
-                          'brand_style': brand_style}
+                          'brand_style': brand_style,
+                          'source_id': brand_url.replace('http://www.etmoc.com/Firms/BrandShow?Id=', '')}
             list_brand_bean_list.append(brand_bean)
 
     return list_brand_bean_list
@@ -141,20 +143,34 @@ def AnalysisAllBrandHtml(soup_html):
 def downFirstBrandPage(save_path):
     allBrands = select_brand_table()
     for allBrand in allBrands:
-        url = allBrand[3]
+        url = allBrand[4]
         print(f'{url}')
-        source_id = allBrand[2]
+        source_id = allBrand[1]
         html = getHtml(url)
         xkTools.writeFile(save_path, source_id + '.txt', html)
         update_brand_table(allBrand[0])
 
 
-def analysisFirstBrandPage(savePath):
-    fileNames = xkTools.getFolderFileNames(savePath)
+def analysisFirstBrandPage(save_path):
+    fileNames = xkTools.getFolderFileNames(save_path)
     for fileName in fileNames:
-        html = xkTools.readFile(savePath, fileName)
-
-
+        print(fileName)
+        html = xkTools.readFile(save_path, fileName)
+        soup = BeautifulSoup(html, 'html.parser')
+        brand_title = soup.select('div.brand-title')[0].text
+        brand_title_small = soup.select('div.brand-title')[0].select('small')[0].text
+        deal_band_title = brand_title.replace(brand_title_small, '')
+        # Handling special escape characters
+        brand_introduce = (soup.select('div.detail.brand-detail')[0].text.replace(' ', '')
+                           .replace('\n', '').replace('\t', '').replace('\r', ''))
+        #  http://www.etmoc.com/Firm/brandpic/20150813235228.png
+        brand_image_url = 'http://www.etmoc.com' + soup.select('p.brandImg.detailshad')[0].select('img')[0]['src']
+        page_content = soup.select('ul.pagination')[0].select('li')
+        if len(page_content) != 0:
+            pageNumber = page_content[len(page_content) - 2].select('a')[0].text
+            print(pageNumber)
+        else:
+            pageNumber = 1
 
 mainSavePath = '/Users/renyongkang/MyPath/ZKZD2023_Data/tobacco/'
 
@@ -167,7 +183,7 @@ if __name__ == '__main__':
 
     # step 2 : down first brand page
     first_page_path = '/tobacco_brand_first_page/'
-    downFirstBrandPage(mainSavePath + first_page_path)
+    # downFirstBrandPage(mainSavePath + first_page_path)
 
     # step 3 : analysis first brand page
-
+    analysisFirstBrandPage(mainSavePath + first_page_path)
