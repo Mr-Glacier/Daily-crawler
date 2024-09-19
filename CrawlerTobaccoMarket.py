@@ -105,6 +105,33 @@ def update_brand_table_details(id):
         print(f'{e}')
 
 
+def insert_specifications_table(bean_list, bach_size):
+    sql_insert_specifications = """INSERT INTO tobacco_specifications (brand_source_id,specifications_source_id, 
+    specifications_name, specifications_url, specifications_pic_url,specifications_norm,specifications_xh_number, 
+    specifications_th_number,specifications_price,down_state,down_time) VALUES (?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?);"""
+    try:
+        # 分批插入数据
+        for i in range(0, len(bean_list), bach_size):
+            conn = sqlite3.connect(dataBasePath)
+            curs = conn.cursor()
+            now = datetime.datetime.now()
+            formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
+            batch = bean_list[i:i + bach_size]
+            curs.executemany(sql_insert_specifications,
+                             [(b['brand_source_id'], b['specifications_source_id'], b['specifications_name'],
+                               b['specifications_url'], b['specifications_pic_url'], b['specifications_norm'],
+                               b['specifications_xh_number'], b['specifications_th_number'], b['specifications_price'],
+                               'NO', formatted_now)
+                              for b in batch])
+            conn.commit()
+            curs.close()
+            conn.close()
+            print(f'bath{i}----->OK')
+        print(f"All {len(bean_list)} specifications inserted successfully.")
+    except Exception as e:
+        print(e)
+
+
 # select all brand to down
 def select_brand_table():
     try:
@@ -281,7 +308,8 @@ def analysisBrandDetailsPage(save_path):
                 'specifications_name': specifications_name.replace('\n', '').replace('\r', '').replace('\t', ''),
                 'specifications_url': specifications_url,
                 'specifications_pic_url': specifications_pic_url,
-                'specifications_norm': specifications_norm.replace('\n', '').replace('\r', '').replace('\t', ''),
+                'specifications_norm': specifications_norm.replace('                 ', '  ').replace('  ', '|')
+                .replace('\n', '').replace('\r', '').replace('\t', ''),
                 'specifications_xh_number': specifications_xh_number.replace('\n', '').replace('\r', '').replace('\t',
                                                                                                                  ''),
                 'specifications_th_number': specifications_th_number.replace('\n', '').replace('\r', '').replace('\t',
@@ -317,4 +345,5 @@ if __name__ == '__main__':
     # step 4 : down tobacco brand details all pages
     tobacco_brand_details_path = '/tobacco_brand_details/'
     # downBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
-    bean_list_brand_details = analysisBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
+    bean_specifications = analysisBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
+    insert_specifications_table(bean_specifications, 50)
