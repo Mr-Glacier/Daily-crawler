@@ -132,6 +132,67 @@ def insert_specifications_table(bean_list, bach_size):
         print(e)
 
 
+def select_specifications_table():
+    try:
+        conn = sqlite3.connect(dataBasePath)
+        curs = conn.cursor()
+        sql_str = ''' select * from tobacco_specifications where down_state = 'NO' '''
+        curs.execute(sql_str)
+        all_specifications = curs.fetchall()
+        curs.close()
+        conn.close()
+        return all_specifications
+    except Exception as e:
+        print(f'{e}')
+
+
+def update_specifications_table(id):
+    try:
+        conn = sqlite3.connect(dataBasePath)
+        curs = conn.cursor()
+        sql_str = '''update tobacco_specifications set down_state = 'YES' where id =  ? '''
+        curs.execute(sql_str, (id,))
+        conn.commit()
+        curs.close()
+        conn.close()
+    except Exception as e:
+        print(f'{e}')
+
+
+def insert_specifications_details(specifications_beans, batch_size):
+    sql_insert_specifications_details = """INSERT INTO tobacco_specifications_details (
+    specifications_source_id,specifications_title,specifications_small,specifications_product_type,
+    specifications_product_tar_amount,specifications_product_nicotine_content,specifications_product_carbon_monoxide,
+    specifications_product_th_size,specifications_product_packaging,specifications_product_cigarette_norm,
+    specifications_product_cigarette_length,specifications_product_xh_number,specifications_product_th_number,
+    specifications_product_xh_price,specifications_product_th_price,specifications_product_wholesale_price,
+    specifications_product_availability
+    ) VALUES (?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?,?, ?, ?, ?);"""
+    try:
+        # 分批插入数据
+        for i in range(0, len(specifications_beans), batch_size):
+            conn = sqlite3.connect(dataBasePath)
+            curs = conn.cursor()
+            batch = specifications_beans[i:i + batch_size]
+            curs.executemany(sql_insert_specifications_details,
+                             [(b['specifications_source_id'], b['specifications_title'], b['specifications_small'],
+                               b['specifications_product_type'], b['specifications_product_tar_amount'],
+                               b['specifications_product_nicotine_content'],
+                               b['specifications_product_carbon_monoxide'], b['specifications_product_th_size'],
+                               b['specifications_product_packaging'], b['specifications_product_cigarette_norm'],
+                               b['specifications_product_cigarette_length'], b['specifications_product_xh_number'],
+                               b['specifications_product_th_number'], b['specifications_product_xh_price'],
+                               b['specifications_product_th_price'], b['specifications_product_wholesale_price'],
+                               b['specifications_product_availability'])
+                              for b in batch])
+            conn.commit()
+            curs.close()
+            conn.close()
+            print(f'bath{i}----->OK')
+    except Exception as e:
+        print(e)
+
+
 # select all brand to down
 def select_brand_table():
     try:
@@ -322,6 +383,85 @@ def analysisBrandDetailsPage(save_path):
     return bean_list
 
 
+def downSpecificationsDetailsPage(save_path):
+    all_specifications = select_specifications_table()
+    for all_brand_detail in all_specifications:
+        url = all_brand_detail[4]
+        print(f'{url}')
+        specifications_id = all_brand_detail[2]
+        html = getHtml(url)
+        xkTools.writeFile(save_path, specifications_id + '.txt', html)
+        update_specifications_table(all_brand_detail[0])
+    print('all specifications details page is down Ok ')
+
+
+def analysisSpecificationsDetailsPage(save_path):
+    fileNames = xkTools.getFolderFileNames(save_path)
+    bean_list = []
+    for fileName in fileNames:
+        print(fileName)
+        html = xkTools.readFile(save_path, fileName)
+        soup = BeautifulSoup(html, 'html.parser')
+
+        specifications_small = soup.select('div.brand-title')[0].select('small')[0].text
+        specifications_title = soup.select('div.brand-title')[0].text.replace(specifications_small, '')
+        list_content = soup.select('div.col-8')[0].select('div.proBars')
+        if len(list_content) > 1:
+            specifications_product_type = list_content[0].select('div.proBar.proBarB.proBar2')[0].select('div')[0].text
+            specifications_product_tar_amount = list_content[0].select('div.proBar.proBarB.proBar2')[0].select('div')[
+                1].text
+            specifications_product_nicotine_content = list_content[0].find('div', class_='proBar proBar2').select('div')[0].text
+            specifications_product_carbon_monoxide = list_content[0].find('div', class_='proBar proBar2').select('div')[
+                1].text
+
+            specifications_product_th_size = list_content[1].select('div.proBar.proBarB')[0].select('span.lbl1')[0].text
+            specifications_product_packaging = list_content[1].select('div.proBar.proBarB')[0].text.replace(
+                specifications_product_th_size, '')
+            specifications_product_cigarette_norm = ''
+            if len(list_content[1].select_one('.proBar:not(.proBarB)').select('span.lbl')) > 0:
+                specifications_product_cigarette_norm = list_content[1].select_one('.proBar:not(.proBarB)').select_one('span.lbl').text
+            specifications_product_cigarette_length = list_content[1].select_one('.proBar:not(.proBarB)').text.replace(
+                specifications_product_cigarette_norm, '')
+
+            specifications_product_xh_number = list_content[2].select('div.proBar.proBarB.proBar2')[0].select('div')[
+                0].text
+            specifications_product_th_number = list_content[2].select('div.proBar.proBarB.proBar2')[0].select('div')[
+                1].text
+
+            specifications_product_xh_price = list_content[3].find('div', class_='proBar proBar2').select('div')[0].text
+            specifications_product_th_price = list_content[3].find('div', class_='proBar proBar2').select('div')[1].text
+
+            specifications_product_wholesale_price = ''
+            if list_content[3].find('div', class_='proBar proBarB') is not None:
+                specifications_product_wholesale_price = list_content[3].find('div', class_='proBar proBarB').text
+            specifications_product_availability = ''
+            print(len(list_content))
+            if len(list_content) > 4:
+                specifications_product_availability = list_content[4].text
+
+            bean_specifications_details = {
+                'specifications_title': specifications_title.replace('\n', ''),
+                'specifications_small': specifications_small,
+                'specifications_product_type': specifications_product_type,
+                'specifications_product_tar_amount': specifications_product_tar_amount,
+                'specifications_product_nicotine_content': specifications_product_nicotine_content,
+                'specifications_product_carbon_monoxide': specifications_product_carbon_monoxide,
+                'specifications_product_th_size': specifications_product_th_size,
+                'specifications_product_packaging': specifications_product_packaging,
+                'specifications_product_cigarette_norm': specifications_product_cigarette_norm,
+                'specifications_product_cigarette_length': specifications_product_cigarette_length,
+                'specifications_product_xh_number': specifications_product_xh_number,
+                'specifications_product_th_number': specifications_product_th_number,
+                'specifications_product_xh_price': specifications_product_xh_price,
+                'specifications_product_th_price': specifications_product_th_price,
+                'specifications_product_wholesale_price': specifications_product_wholesale_price.replace('\n', ''),
+                'specifications_product_availability': specifications_product_availability.replace('\n', ''),
+                'specifications_source_id': fileName.split('_')[0]
+            }
+            bean_list.append(bean_specifications_details)
+    return bean_list
+
+
 if __name__ == '__main__':
     #  this is main savePath for all tobacco data
     mainSavePath = '/Users/renyongkang/MyPath/ZKZD2023_Data/tobacco/'
@@ -345,5 +485,11 @@ if __name__ == '__main__':
     # step 4 : down tobacco brand details all pages
     tobacco_brand_details_path = '/tobacco_brand_details/'
     # downBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
-    bean_specifications = analysisBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
-    insert_specifications_table(bean_specifications, 50)
+    # bean_specifications = analysisBrandDetailsPage(mainSavePath + tobacco_brand_details_path)
+    # insert_specifications_table(bean_specifications, 50)
+
+    # step 5 : down tobacco specifications details page
+    tobacco_specifications_details_path = '/tobacco_specifications_details/'
+    # downSpecificationsDetailsPage(mainSavePath + tobacco_specifications_details_path)
+    bean_specifications = analysisSpecificationsDetailsPage(mainSavePath + tobacco_specifications_details_path)
+    insert_specifications_details(bean_specifications, 50)
