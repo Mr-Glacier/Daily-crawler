@@ -42,3 +42,12 @@ def readFileByLine(save_path, save_name):
         return list_lin
     except Exception as e:
         print(f'{e}')
+
+
+# 创建文件夹
+def createFolder(folder_path):
+    try:
+        if not os.path.exists(folder_path):
+            os.mkdir(folder_path)
+    except Exception as e:
+        print(f'{e}')
